@@ -1,0 +1,29 @@
+diff --git a/decode.py b/decode.py
+index 0056671788f1e6ec84eef1ec5c9b4d887b179506..c8488b8fb77dfa772b50393b47549f7faa718b61 100644
+--- a/decode.py
++++ b/decode.py
+@@ -53,8 +53,15 @@ def build_encoder(dtype):
+     })
+     pipe = blocks.init_pipeline(REPO)
+     pipe.load_components(names=["vae", "audio_vae"], revision=REVISION, dtype=dtype)
++    pipe.vae.to(dtype)
++    pipe.audio_vae.to(dtype)
+     pipe.vae.to("cuda").eval()
+     pipe.audio_vae.to("cuda").eval()
++    if os.environ.get("AO_OPT_1", "1") != "0":
++        torch._dynamo.config.cache_size_limit = 64
++        torch._dynamo.config.suppress_errors = True
++        pipe.vae.encoder = torch.compile(pipe.vae.encoder, dynamic=False)
++        pipe.vae.decoder = torch.compile(pipe.vae.decoder, dynamic=False)
+     return pipe
+ 
+ 
+@@ -75,7 +82,7 @@ def main():
+     ap.add_argument("--frames", type=int, default=124, help="latent-aligned count (17n+5)")
+     ap.add_argument("--clips", type=int, default=4)
+     ap.add_argument("--stride", type=int, default=30, help="source frames between clip starts")
+-    ap.add_argument("--dtype", default="bf16", choices=["bf16", "fp16", "fp32"])
++    ap.add_argument("--dtype", default="fp16", choices=["bf16", "fp16", "fp32"])
+     ap.add_argument("--out", default=os.path.join(HERE, "out", "decode.json"))
+     args = ap.parse_args()
+     dtype = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}[args.dtype]
